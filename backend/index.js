@@ -11,22 +11,19 @@ const {
 
 app.use(cors());
 app.use(express.json());
-// 1. Fetch user's actors
 app.post("/api/actors", async (req, res) => {
   const { apiKey } = req.body;
 
   try {
     const client = new ApifyClient({ token: apiKey });
-    const { items } = await client.actors().list(); // basic actor list
+    const { items } = await client.actors().list(); 
 
-    // Fetch detailed info for each actor
     const detailedActors = await Promise.all(
       items.map(async (actor) => {
         try {
           const fullActor = await client.actor(actor.id).get();
           return fullActor;
         } catch (e) {
-          // fallback to basic info if one fails
           return actor;
         }
       })
@@ -47,7 +44,6 @@ app.post("/api/schema", async (req, res) => {
     const actorClient = apifyClient.actor(actorId);
     const actorDetails = await actorClient.get();
 
-    // Fallback: Try exampleRunInput if schema is missing
     if (!actorDetails.inputSchema && actorDetails.exampleRunInput) {
       const exampleInput = actorDetails.exampleRunInput.body;
       return res.json({
@@ -72,7 +68,6 @@ app.post("/api/schema", async (req, res) => {
   }
 });
 
-// 3. Run actor and return result
 function normalizeUrlsInInput(input) {
   const fixedInput = { ...input };
 
@@ -94,7 +89,6 @@ app.post("/api/run", async (req, res) => {
   console.log("Running actor with raw input:", input);
 
   try {
-    // Normalize only "*Urls" fields in the input
     const normalizedInput = normalizeUrlsInInput(input);
     console.log("Normalized input:", normalizedInput);
 
@@ -113,13 +107,8 @@ app.post("/api/run", async (req, res) => {
 
 let apifyClientInstance = null;
 
-/**
- * Middleware to initialize ApifyClient and ensure API key is present.
- * This function extracts the API key from the request body and initializes
- * the ApifyClient. It's used before routes that require Apify API access.
- */
 const initializeApifyClient = (req, res, next) => {
-  const { apiKey } = req.body; // Expect API key in the request body for security
+  const { apiKey } = req.body; 
   if (!apiKey) {
     return res
       .status(400)
@@ -128,7 +117,7 @@ const initializeApifyClient = (req, res, next) => {
 
   try {
     apifyClientInstance = new ApifyClient({ token: apiKey });
-    next(); // Proceed to the next middleware or route handler
+    next(); 
   } catch (error) {
     console.error("Failed to initialize ApifyClient:", error);
     return res.status(500).json({
@@ -138,17 +127,7 @@ const initializeApifyClient = (req, res, next) => {
   }
 };
 
-/**
- * API endpoint to get the latest build ID for a given actor name.
- *
- * Route: GET /api/actors/by-name/:authorName/:actorName/build-id
- * Example: /api/actors/by-name/apify/website-content-crawler/build-id
- *
- * Request Body:
- * {
- * "apiKey": "YOUR_APIFY_API_KEY"
- * }
- */
+
 app.post(
   "/api/actors/by-name/:authorName/:actorName/build-id",
   initializeApifyClient,
@@ -157,8 +136,6 @@ app.post(
     const fullActorName = `${authorName}~${actorName}`;
 
     try {
-      // Use the ApifyClient to get actor details by its full name
-      // This corresponds to the GET https://api.apify.com/v2/acts/<actorIdOrName> endpoint
       const actor = await apifyClientInstance.actor(fullActorName).get();
 
       if (!actor) {
@@ -166,9 +143,6 @@ app.post(
           .status(404)
           .json({ error: `Actor '${fullActorName}' not found.` });
       }
-
-      // Extract the latest build ID from taggedBuilds
-      // The 'taggedBuilds' object contains different builds by their tags (e.g., 'latest')
       const latestBuild = actor.taggedBuilds?.latest;
 
       if (!latestBuild || !latestBuild.buildId) {
@@ -188,7 +162,6 @@ app.post(
         `Error fetching build ID for actor ${fullActorName}:`,
         error
       );
-      // Provide more specific error messages based on Apify API errors if possible
       if (error.statusCode === 401) {
         res.status(401).json({
           error: "Authentication failed. Invalid Apify API key.",
@@ -209,17 +182,7 @@ app.post(
   }
 );
 
-/**
- * API endpoint to get the input schema for a specific actor build ID.
- *
- * Route: GET /api/actor-builds/:buildId/schema
- * Example: /api/actor-builds/ABCDEFG12345/schema
- *
- * Request Body:
- * {
- * "apiKey": "YOUR_APIFY_API_KEY"
- * }
- */
+
 app.post(
   "/api/actor-builds/:buildId/schema",
   initializeApifyClient,
@@ -227,8 +190,6 @@ app.post(
     const { buildId } = req.params;
 
     try {
-      // Use the ApifyClient to get actor build details by its ID
-      // This corresponds to the GET https://api.apify.com/v2/actor-builds/<buildId> endpoint
       const build = await apifyClientInstance.build(buildId).get();
 
       if (!build) {
@@ -236,8 +197,6 @@ app.post(
           .status(404)
           .json({ error: `Actor build with ID '${buildId}' not found.` });
       }
-
-      // The inputSchema is directly available on the build object
       const inputSchema = build.inputSchema;
 
       if (!inputSchema) {
@@ -250,7 +209,7 @@ app.post(
   : inputSchema;
 
 console.log("Input schema properties:", parsedSchema.properties);
-      res.json(parsedSchema); // Return the full JSON schema
+      res.json(parsedSchema); 
     } catch (error) {
       console.error(
         `Error fetching input schema for build ID ${buildId}:`,
